@@ -6,8 +6,25 @@ const gramsanghMemberSchema = new mongoose.Schema(
         user: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "User",
-            required: [true, "User is required"],
+            required: false,
             index: true,
+        },
+        invitedContactNumber: {
+            countryCode: {
+                type: String,
+                required: false,
+                trim: true,
+            },
+            number: {
+                type: String,
+                required: false,
+                trim: true,
+            },
+        },
+        invitedFullName: {
+            type: String,
+            required: false,
+            trim: true,
         },
         gramsangh: {
             type: mongoose.Schema.Types.ObjectId,
@@ -27,8 +44,14 @@ const gramsanghMemberSchema = new mongoose.Schema(
         },
         status: {
             type: String,
-            enum: ["active", "inactive"],
-            default: "active",
+            enum: ["pending", "active", "inactive"],
+            default: "pending",
+        },
+        invitedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+            required: false,
+            index: true,
         },
     },
     {
@@ -38,12 +61,27 @@ const gramsanghMemberSchema = new mongoose.Schema(
     }
 );
 
+gramsanghMemberSchema.pre("validate", function (next) {
+    if (!this.user && !this.invitedContactNumber?.number) {
+        this.invalidate("user", "User or invited contact number is required");
+    }
+    next();
+});
+
 gramsanghMemberSchema.plugin(plugins.softDelete);
 gramsanghMemberSchema.plugin(plugins.paginate);
 
 // Ensure one user can have only one position per gramsangh
 gramsanghMemberSchema.index(
     { user: 1, gramsangh: 1 },
+    { unique: true, sparse: true }
+);
+gramsanghMemberSchema.index(
+    {
+        "invitedContactNumber.countryCode": 1,
+        "invitedContactNumber.number": 1,
+        gramsangh: 1,
+    },
     { unique: true, sparse: true }
 );
 

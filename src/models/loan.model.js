@@ -76,7 +76,7 @@ const loanSchema = new mongoose.Schema(
 );
 
 // Ensure either bachatGat or gramsangh is set
-loanSchema.pre("save", function (next) {
+loanSchema.pre("save", function () {
     if (
         (!this.bachatGat && !this.gramsangh) ||
         (this.bachatGat && this.gramsangh)
@@ -85,7 +85,6 @@ loanSchema.pre("save", function (next) {
             "Either bachatGat or gramsangh must be set, but not both"
         );
     }
-    next();
 });
 
 const Loan = mongoose.model("Loan", loanSchema);

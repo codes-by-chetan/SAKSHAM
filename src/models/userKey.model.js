@@ -37,9 +37,8 @@ const userKeySchema = new mongoose.Schema({
 userKeySchema.index({ user: 1, session: 1 }, { unique: true });
 
 // Update `updatedAt` timestamp on save
-userKeySchema.pre("save", function (next) {
+userKeySchema.pre("save", function () {
     this.updatedAt = Date.now();
-    next();
 });
 
 // Method to deactivate a key for a specific session

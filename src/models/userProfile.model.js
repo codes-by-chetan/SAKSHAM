@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import validator from "validator";
 import plugins from "./plugins/index.js";
-import middlewares from "../middlewares/index.js";
+import dbLogger from "../middlewares/dbLogger.middleware.js";
 import reusableSchemas from "./reusableSchemas/index.js";
 
 const userProfileSchema = new mongoose.Schema(
@@ -122,9 +122,7 @@ userProfileSchema.index({ user: 1 }, { unique: true });
 userProfileSchema.index({ displayName: 1 }, { sparse: true });
 
 // Pre-save hook for logging
-userProfileSchema.pre("save", function (next) {
-    return middlewares.dbLogger("UserProfile").call(this, next);
-});
+userProfileSchema.pre("save", dbLogger("UserProfile"));
 
 // Utility method to create or update profile
 userProfileSchema.statics.upsertProfile = async function (
@@ -164,11 +162,10 @@ userProfileSchema.statics.restore = async function (userId) {
 };
 
 // Query only active records by default
-userProfileSchema.pre(/^find/, function (next) {
+userProfileSchema.pre(/^find/, function () {
     if (!this.getQuery().hasOwnProperty("isActive")) {
         this.where({ isActive: true });
     }
-    next();
 });
 
 const UserProfile = mongoose.model("UserProfile", userProfileSchema);

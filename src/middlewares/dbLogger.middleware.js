@@ -2,7 +2,7 @@ import DbLogs from "../models/dbLogs.model.js"; // Path to your DbLogs model
 
 // Middleware to handle insert, update, and delete
 function dbLogger(modelName) {
-    return async function (next) {
+    return async function () {
         try {
             // Get the operation type (insert, update, delete)
             const operation = this.isNew
@@ -27,11 +27,8 @@ function dbLogger(modelName) {
                     origin: origin,
                 });
                 await log.save();
-                next();
-            }
-
-            // Log update
-            if (operation === "update") {
+            } else if (operation === "update") {
+                // Log update
                 const changes = this._doc; // Get document's current state
                 const previous = this._previousData || this._doc; // Store previous data manually during update
                 log = new DbLogs({
@@ -47,11 +44,8 @@ function dbLogger(modelName) {
                     origin: origin,
                 });
                 await log.save();
-                next();
-            }
-
-            // Log delete
-            if (operation === "delete") {
+            } else if (operation === "delete") {
+                // Log delete
                 log = new DbLogs({
                     transactionType: "delete",
                     transactionDetails: `Deleted a document from ${modelName}`,
@@ -64,14 +58,13 @@ function dbLogger(modelName) {
                     origin: origin,
                 });
                 await log.save();
-                next();
             }
             // if (modelName !== "RequestLog") {
             //   console.log("logging  in the db changes : ", modelName, "log : ", log)                           
             // }
         } catch (error) {
             console.log("Error logging transaction:", error);
-            next(error); // Pass the error to the next middleware
+            throw error;
         }
     };
 }

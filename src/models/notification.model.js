@@ -2,7 +2,7 @@
 import mongoose from "mongoose";
 import validator from "validator";
 import plugins from "./plugins/index.js";
-import middlewares from "../middlewares/index.js";
+import dbLogger from "../middlewares/dbLogger.middleware.js";
 
 /**
  * Schema for storing user notifications (e.g., follow requests, suggestions, likes, comments).
@@ -161,9 +161,7 @@ notificationSchema.index({ sender: 1 });
 notificationSchema.index({ type: 1, status: 1 });
 
 // Pre-save hook for logging
-notificationSchema.pre("save", function (next) {
-    return middlewares.dbLogger("Notification").call(this, next);
-});
+notificationSchema.pre("save", dbLogger("Notification"));
 // Method to mark as read
 notificationSchema.methods.markAsRead = async function () {
     this.status = "Read";
@@ -187,11 +185,10 @@ notificationSchema.statics.restore = async function (id) {
 };
 
 // Query only active records by default
-notificationSchema.pre(/^find/, function (next) {
+notificationSchema.pre(/^find/, function () {
     if (!this.getQuery().hasOwnProperty("isActive")) {
         this.where({ isActive: true });
     }
-    next();
 });
 
 // Utility method for populated data

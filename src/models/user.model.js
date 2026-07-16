@@ -268,20 +268,32 @@ userSchema.statics.getActiveSessions = async function (userId) {
 };
 
 // Clean up expired sessions
-userSchema.pre(/^find/, async function (next) {
-    if (this.getQuery()._id) {
-        await this.model.updateOne(
-            { _id: this.getQuery()._id },
-            { $pull: { sessions: { expiresAt: { $lt: new Date() } } } }
-        );
+userSchema.pre(/^find/, async function () {
+    const queryId = this.getQuery()._id;
+    let userId = queryId;
+
+    if (
+        queryId &&
+        typeof queryId === "object" &&
+        !(queryId instanceof mongoose.Types.ObjectId)
+    ) {
+        userId = queryId.$eq;
     }
-    next();
+
+    if (!userId || !mongoose.isValidObjectId(userId)) {
+        return;
+    }
+
+    await this.model.updateOne(
+        { _id: userId },
+        { $pull: { sessions: { expiresAt: { $lt: new Date() } } } }
+    );
 });
 
 // Pre-save hook for registration token
-userSchema.pre("save", function (next) {
+userSchema.pre("save", function () {
     if (!this.isNew) {
-        return next();
+        return;
     }
     const token = jwt.sign(
         {
@@ -293,27 +305,22 @@ userSchema.pre("save", function (next) {
         config.jwt.secret
     );
     this.registrationToken = bcrypt.hashSync(token, 10);
-    next();
 });
 
 // Pre-save hook for password hashing
-userSchema.pre("save", function (next) {
-    if (!this.isModified("password") || !this.password) return next();
+userSchema.pre("save", function () {
+    if (!this.isModified("password") || !this.password) return;
     this.password = bcrypt.hashSync(this.password, 10);
-    next();
 });
 
 // Pre-save hook for MPIN hashing
-userSchema.pre("save", function (next) {
-    if (!this.isModified("mpin") || !this.mpin) return next();
+userSchema.pre("save", function () {
+    if (!this.isModified("mpin") || !this.mpin) return;
     this.mpin = bcrypt.hashSync(String(this.mpin), 10);
-    next();
 });
 
 // Pre-save hook for logging
-userSchema.pre("save", function (next) {
-    return dbLogger("User").call(this, next);
-});
+userSchema.pre("save", dbLogger("User"));
 
 const User = mongoose.model("User", userSchema);
 export default User;

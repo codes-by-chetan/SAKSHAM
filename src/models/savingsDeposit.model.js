@@ -54,7 +54,7 @@ const savingsDepositSchema = new mongoose.Schema(
 );
 
 // Ensure either bachatGat or gramsangh is set, but not both
-savingsDepositSchema.pre("save", function (next) {
+savingsDepositSchema.pre("save", function () {
     if (
         (!this.bachatGat && !this.gramsangh) ||
         (this.bachatGat && this.gramsangh)
@@ -63,7 +63,6 @@ savingsDepositSchema.pre("save", function (next) {
             "Either bachatGat or gramsangh must be set, but not both"
         );
     }
-    next();
 });
 
 const SavingsDeposit = mongoose.model("SavingsDeposit", savingsDepositSchema);
