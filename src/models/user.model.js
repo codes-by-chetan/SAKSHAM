@@ -8,7 +8,6 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import config from "../config/env.config.js";
 import dbLogger from "../middlewares/dbLogger.middleware.js";
-import moment from "moment";
 import reusableSchemas from "./reusableSchemas/index.js";
 import { v4 as uuidv4 } from "uuid";
 import { UAParser } from "ua-parser-js";
@@ -34,6 +33,11 @@ const sessionSchema = new mongoose.Schema({
         type: String,
         required: [true, "Token ID is required"],
     },
+    refreshTokenHash: {
+        type: String,
+        required: [true, "Refresh token hash is required"],
+        private: true,
+    },
     deviceInfo: {
         browser: { type: String, trim: true },
         os: { type: String, trim: true },
@@ -55,6 +59,10 @@ const sessionSchema = new mongoose.Schema({
     expiresAt: {
         type: Date,
         required: [true, "Expiration timestamp is required"],
+    },
+    refreshTokenExpiresAt: {
+        type: Date,
+        required: [true, "Refresh token expiration timestamp is required"],
     },
     isActive: {
         type: Boolean,
@@ -181,34 +189,28 @@ userSchema.methods.isMpinCorrect = async function (mpin) {
     return await bcrypt.compare(String(mpin), this.mpin);
 };
 
-// Generate access token and add session
-userSchema.methods.generateAccessToken = async function (req) {
-    const tokenId = uuidv4();
+const getTokenExpiration = (token) => {
+    const { exp } = jwt.decode(token);
+    return new Date(exp * 1000);
+};
 
-    // Parse config.jwt.expiry (e.g., "2D" or numeric seconds)
-    let expirySeconds;
-    if (typeof config.jwt.expiry === "string") {
-        console.log("expiry data: ", config.jwt.expiry);
-
-        const match = config.jwt.expiry.match(/^(\d+)([dhm])$/); // Matches "2D", "1H", "30M"
-        if (!match) {
-            throw new Error(
-                "Invalid JWT expiry format. Use number or format like '2D', '1H', '30M'"
-            );
-        }
-        const value = parseInt(match[1], 10);
-        const unit = match[2];
-        if (unit === "d")
-            expirySeconds = value * 24 * 60 * 60; // Days to seconds
-        else if (unit === "h")
-            expirySeconds = value * 60 * 60; // Hours to seconds
-        else if (unit === "m") expirySeconds = value * 60; // Minutes to seconds
-    } else {
-        expirySeconds = config.jwt.expiry; // Assume numeric seconds
+const getDeviceInfo = (req) => {
+    try {
+        const parser = new UAParser(req.headers["user-agent"] || "");
+        const ua = parser.getResult();
+        return {
+            browser: ua.browser.name,
+            os: ua.os.name,
+            device: ua.device.type || "desktop",
+        };
+    } catch {
+        return {};
     }
+};
 
-    const expiresAt = moment().add(expirySeconds, "seconds").toDate();
-
+// Generate an access/refresh token pair and add a session.
+userSchema.methods.generateAuthTokens = async function (req) {
+    const tokenId = uuidv4();
     const token = jwt.sign(
         {
             id: this._id,
@@ -217,27 +219,24 @@ userSchema.methods.generateAccessToken = async function (req) {
             fullName: this.fullName,
             role: this.role,
             jti: tokenId,
+            type: "access",
         },
         config.jwt.secret,
         { expiresIn: config.jwt.expiry }
     );
-
-    let deviceInfo = {};
-    try {
-        const parser = new UAParser(req.headers["user-agent"] || "");
-        const ua = parser.getResult();
-        deviceInfo = {
-            browser: ua.browser.name,
-            os: ua.os.name,
-            device: ua.device.type || "desktop",
-        };
-    } catch (error) {
-        console.error("Failed to parse User-Agent:", error);
-    }
+    const refreshToken = jwt.sign(
+        { id: this._id, jti: tokenId, type: "refresh" },
+        config.jwt.refreshSecret,
+        { expiresIn: config.jwt.refreshExpiry }
+    );
+    const expiresAt = getTokenExpiration(token);
+    const refreshTokenExpiresAt = getTokenExpiration(refreshToken);
 
     const session = {
         tokenId,
-        deviceInfo,
+        refreshTokenHash: await bcrypt.hash(refreshToken, 10),
+        refreshTokenExpiresAt,
+        deviceInfo: getDeviceInfo(req),
         ipAddress: getIpDetails(req).clientIp,
         loginAt: new Date(),
         expiresAt,
@@ -247,7 +246,21 @@ userSchema.methods.generateAccessToken = async function (req) {
     this.sessions.push(session);
     await this.save();
 
-    return { token, expiryTime: expiresAt.toISOString() };
+    return {
+        token,
+        refreshToken,
+        expiryTime: expiresAt.toISOString(),
+    };
+};
+
+// Retained for existing callers.
+userSchema.methods.generateAccessToken = function (req) {
+    return this.generateAuthTokens(req);
+};
+
+userSchema.methods.rotateAuthTokens = async function (req, tokenId) {
+    this.sessions = this.sessions.filter((session) => session.tokenId !== tokenId);
+    return this.generateAuthTokens(req);
 };
 
 // Revoke a session

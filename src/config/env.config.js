@@ -16,6 +16,12 @@ const envVarSchema = joi
         ACCESS_TOKEN_EXPIRY: joi
             .string()
             .description("Access token expiry time"),
+        REFRESH_TOKEN_SECRET_KEY: joi
+            .string()
+            .description("Refresh token secret key"),
+        REFRESH_TOKEN_EXPIRY: joi
+            .string()
+            .description("Refresh token expiry time"),
         CLOUDINARY_CLOUD_NAME: joi
             .string()
             .description("Cloudinary cloud name"),
@@ -57,6 +63,10 @@ const config = {
     jwt: {
         secret: envVars.ACCESS_TOKEN_SECRET_KEY,
         expiry: envVars.ACCESS_TOKEN_EXPIRY,
+        refreshSecret:
+            envVars.REFRESH_TOKEN_SECRET_KEY ||
+            envVars.ACCESS_TOKEN_SECRET_KEY,
+        refreshExpiry: envVars.REFRESH_TOKEN_EXPIRY || "30d",
     },
     cloudinary: {
         cloudName: envVars.CLOUDINARY_CLOUD_NAME,

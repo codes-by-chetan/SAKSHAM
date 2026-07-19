@@ -8,7 +8,7 @@ import config from "../config/env.config.js";
 
 const register = asyncHandler(async (req, res) => {
     const userData = await services.authService.registerUser(req.body);
-    const authTokens = await userData.generateAccessToken(req);
+    const authTokens = await userData.generateAuthTokens(req);
     const choosenFields = {
         fullName: userData.fullName,
         email: userData.email,
@@ -23,6 +23,16 @@ const register = asyncHandler(async (req, res) => {
         "user created successfully"
     );
     res.status(httpStatus.CREATED).json(response);
+});
+
+const refresh = asyncHandler(async (req, res) => {
+    const tokens = await services.authService.refreshAuthTokens(
+        req,
+        req.body.refreshToken
+    );
+    res.status(httpStatus.OK).json(
+        new ApiResponse(httpStatus.OK, tokens, "Tokens refreshed successfully")
+    );
 });
 
 const login = asyncHandler(async (req, res) => {
@@ -147,6 +157,7 @@ const logout = asyncHandler(async (req, res) => {
 const authController = {
     register,
     login,
+    refresh,
     verifySocialToken,
     changePassword,
     setMpin,

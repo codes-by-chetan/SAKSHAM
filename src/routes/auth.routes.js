@@ -18,6 +18,8 @@ router.post(
     controllers.authController.login
 );
 
+router.post("/refresh", controllers.authController.refresh);
+
 
 // Verify social token endpoint
 router.post(
@@ -26,6 +28,7 @@ router.post(
 );
 
 router.use(authMiddleware);
+router.get("/validate", controllers.authController.verifyUser);
 // Change password endpoint
 router.post(
     "/change-password",
@@ -42,7 +45,7 @@ router.post(
     controllers.authController.updateMpin
 );
 router.get("/refresh-user", controllers.authController.getUserDetails);
-router.get("/logout", controllers.authController.logout);
+router.post("/logout", controllers.authController.logout);
 
 const authRouter = router;
 export default authRouter;

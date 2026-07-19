@@ -31,6 +31,10 @@ const authMiddleware = asyncHandler(async (req, res, next) => {
         throw new ApiError(httpStatus.UNAUTHORIZED, "Invalid token");
     }
 
+    if (decoded.type && decoded.type !== "access") {
+        throw new ApiError(httpStatus.UNAUTHORIZED, "Invalid access token");
+    }
+
     const user = await models.User.findById(decoded?.id);
     if (!user) {
         throw new ApiError(httpStatus.NOT_FOUND, "User not found");

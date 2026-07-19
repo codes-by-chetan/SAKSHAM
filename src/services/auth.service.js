@@ -7,6 +7,7 @@ import jwt from "jsonwebtoken";
 import config from "../config/env.config.js";
 import models from "../models/index.js";
 import axios from "axios";
+import bcrypt from "bcrypt";
 
 /**
  * Authenticates a user using their email or contact number and password.
@@ -53,9 +54,43 @@ const loginWithEmailAndPassword = async (req) => {
         throw new ApiError(httpStatus.UNAUTHORIZED, "Password is incorrect!!!");
     }
 
-    const token = await user.generateAccessToken(req);
+    const token = await user.generateAuthTokens(req);
 
     return token;
+};
+
+const refreshAuthTokens = async (req, refreshToken) => {
+    let decoded;
+    try {
+        decoded = jwt.verify(refreshToken, config.jwt.refreshSecret);
+    } catch {
+        throw new ApiError(httpStatus.UNAUTHORIZED, "Invalid or expired refresh token");
+    }
+
+    if (decoded.type !== "refresh") {
+        throw new ApiError(httpStatus.UNAUTHORIZED, "Invalid refresh token");
+    }
+
+    const user = await models.User.findById(decoded.id);
+    if (
+        !user ||
+        user.status === constants.UserStatus.Inactive ||
+        user.deleted
+    ) {
+        throw new ApiError(httpStatus.UNAUTHORIZED, "User session is no longer active");
+    }
+    const session = user?.sessions.find(
+        (item) =>
+            item.tokenId === decoded.jti &&
+            item.isActive &&
+            item.refreshTokenExpiresAt > new Date()
+    );
+
+    if (!session || !(await bcrypt.compare(refreshToken, session.refreshTokenHash))) {
+        throw new ApiError(httpStatus.UNAUTHORIZED, "Invalid or expired refresh token");
+    }
+
+    return user.rotateAuthTokens(req, session.tokenId);
 };
 
 /**
@@ -201,6 +236,7 @@ const logout = async (userId, token) => {
 
 const authService = {
     loginWithEmailAndPassword,
+    refreshAuthTokens,
     registerOrganisation,
     registerUser,
     changeUserPassword,
