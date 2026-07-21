@@ -142,6 +142,7 @@ const getUserDetails = async (id) => {
         email: userData.email,
         contactNumber: userData.contactNumber,
         role: userData.role,
+        hasMpin: Boolean(userData.mpin),
         fullNameString: userData.fullNameString,
         avatar: userData?.profile?.avatar,
     };

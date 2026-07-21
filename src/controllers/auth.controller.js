@@ -14,6 +14,7 @@ const register = asyncHandler(async (req, res) => {
         email: userData.email,
         contactNumber: userData.contactNumber,
         role: userData.role,
+        hasMpin: Boolean(userData.mpin),
         fullNameString: userData.fullNameString,
         avatar: userData?.profile?.avatar,
     };
@@ -84,7 +85,7 @@ const setMpin = asyncHandler(async (req, res) => {
     const { mpin } = req.body;
     await services.authService.setUserMpin(req.user._id, mpin);
 
-    const response = new ApiResponse(200, null, "MPIN set successfully");
+    const response = new ApiResponse(200, { hasMpin: true }, "MPIN set successfully");
     res.status(200).json(response);
 });
 

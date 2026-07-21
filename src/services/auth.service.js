@@ -9,6 +9,16 @@ import models from "../models/index.js";
 import axios from "axios";
 import bcrypt from "bcrypt";
 
+const toSessionUser = (user) => ({
+    id: user._id,
+    fullName: user.fullName,
+    fullNameString: user.fullNameString,
+    email: user.email,
+    contactNumber: user.contactNumber,
+    role: user.role,
+    hasMpin: Boolean(user.mpin),
+});
+
 /**
  * Authenticates a user using their email or contact number and password.
  *
@@ -56,7 +66,7 @@ const loginWithEmailAndPassword = async (req) => {
 
     const token = await user.generateAuthTokens(req);
 
-    return token;
+    return { ...token, user: toSessionUser(user) };
 };
 
 const refreshAuthTokens = async (req, refreshToken) => {
@@ -90,7 +100,8 @@ const refreshAuthTokens = async (req, refreshToken) => {
         throw new ApiError(httpStatus.UNAUTHORIZED, "Invalid or expired refresh token");
     }
 
-    return user.rotateAuthTokens(req, session.tokenId);
+    const tokens = await user.rotateAuthTokens(req, session.tokenId);
+    return { ...tokens, user: toSessionUser(user) };
 };
 
 /**
