@@ -2,6 +2,55 @@ import models from "../models/index.js";
 import ApiError from "../utils/ApiError.js";
 import httpStatus from "http-status";
 
+const DEFAULT_POSITIONS = {
+    bachatgat: [
+        { name: "adhyaksha", displayName: "Adhyaksha", level: 30 },
+        { name: "sachiv", displayName: "Sachiv", level: 20 },
+        { name: "member", displayName: "Member", level: 10 },
+    ],
+    gramsangh: [
+        { name: "adhyaksha", displayName: "Adhyaksha", level: 30 },
+        { name: "koshadhyaksha", displayName: "Koshadhyaksha", level: 25 },
+        { name: "sachiv", displayName: "Sachiv", level: 20 },
+        { name: "crp", displayName: "CRP", level: 10 },
+    ],
+};
+
+const getGroupConfig = (type) => {
+    if (type === "bachatgat") {
+        return {
+            Group: models.BachatGat,
+            Member: models.BachatGatMember,
+            Position: models.BachatGatPosition,
+            groupField: "bachatGat",
+        };
+    }
+    if (type === "gramsangh") {
+        return {
+            Group: models.Gramsangh,
+            Member: models.GramsanghMember,
+            Position: models.GramsanghPosition,
+            groupField: "gramsangh",
+        };
+    }
+    throw new ApiError(httpStatus.BAD_REQUEST, "Invalid group type");
+};
+
+const seedDefaultPositions = async () => {
+    await Promise.all(
+        Object.entries(DEFAULT_POSITIONS).flatMap(([type, positions]) => {
+            const { Position } = getGroupConfig(type);
+            return positions.map((position) =>
+                Position.updateOne(
+                    { name: position.name },
+                    { $setOnInsert: position },
+                    { upsert: true }
+                )
+            );
+        })
+    );
+};
+
 /**
  * Creates a new gramsangh with the provided payload.
  *
@@ -58,6 +107,218 @@ const createBachatGat = async (payload, userId) => {
     return bachatGat;
 };
 
+const getActiveMembership = async (userId) => {
+    const activeMemberFilter = {
+        user: userId,
+        status: "active",
+        deleted: { $ne: true },
+    };
+
+    const bachatGatMember = await models.BachatGatMember.findOne(
+        activeMemberFilter
+    )
+        .sort({ createdAt: -1 })
+        .populate("bachatGat", "name status");
+    if (bachatGatMember?.bachatGat?.status === "active") {
+        return {
+            id: bachatGatMember.bachatGat._id.toString(),
+            name: bachatGatMember.bachatGat.name,
+            type: "bachatgat",
+            status: "active",
+        };
+    }
+
+    const createdBachatGat = await models.BachatGat.findOne({
+        createdBy: userId,
+        status: "active",
+        deleted: { $ne: true },
+    }).sort({ createdAt: -1 });
+    if (createdBachatGat) {
+        return {
+            id: createdBachatGat._id.toString(),
+            name: createdBachatGat.name,
+            type: "bachatgat",
+            status: "active",
+        };
+    }
+
+    const gramsanghMember = await models.GramsanghMember.findOne(
+        activeMemberFilter
+    )
+        .sort({ createdAt: -1 })
+        .populate("gramsangh", "name status");
+    if (gramsanghMember?.gramsangh?.status === "active") {
+        return {
+            id: gramsanghMember.gramsangh._id.toString(),
+            name: gramsanghMember.gramsangh.name,
+            type: "gramsangh",
+            status: "active",
+        };
+    }
+
+    const createdGramsangh = await models.Gramsangh.findOne({
+        createdBy: userId,
+        status: "active",
+        deleted: { $ne: true },
+    }).sort({ createdAt: -1 });
+    if (createdGramsangh) {
+        return {
+            id: createdGramsangh._id.toString(),
+            name: createdGramsangh.name,
+            type: "gramsangh",
+            status: "active",
+        };
+    }
+
+    return null;
+};
+
+const listPositions = async (type) => {
+    const { Position } = getGroupConfig(type);
+    return Position.find({ status: "active", deleted: { $ne: true } })
+        .sort({ level: -1, displayName: 1 })
+        .select("name displayName description level");
+};
+
+const canManageGroup = async (type, groupId, userId) => {
+    const { Group, Member, groupField } = getGroupConfig(type);
+    const group = await Group.findOne({
+        _id: groupId,
+        status: "active",
+        deleted: { $ne: true },
+    });
+    if (!group) {
+        throw new ApiError(httpStatus.NOT_FOUND, "Group not found");
+    }
+
+    const membership = await Member.findOne({
+        [groupField]: groupId,
+        user: userId,
+        status: "active",
+        deleted: { $ne: true },
+    }).populate("position", "level");
+    if (membership?.position?.level >= 20) {
+        return group;
+    }
+
+    const assignedMembers = await Member.countDocuments({
+        [groupField]: groupId,
+        user: { $exists: true, $ne: null },
+        status: "active",
+        deleted: { $ne: true },
+    });
+    if (group.createdBy.equals(userId) && assignedMembers === 0) {
+        return group;
+    }
+
+    throw new ApiError(
+        httpStatus.FORBIDDEN,
+        "Only an authorised office bearer can manage this group"
+    );
+};
+
+const addSelfAsMember = async (type, groupId, userId, positionId) => {
+    const { Group, Member, Position, groupField } = getGroupConfig(type);
+    const group = await Group.findOne({
+        _id: groupId,
+        status: "active",
+        deleted: { $ne: true },
+    });
+    if (!group) {
+        throw new ApiError(httpStatus.NOT_FOUND, "Group not found");
+    }
+    if (!group.createdBy.equals(userId)) {
+        throw new ApiError(
+            httpStatus.FORBIDDEN,
+            "Only the creator can set up their own initial membership"
+        );
+    }
+
+    const position = await Position.findOne({
+        _id: positionId,
+        status: "active",
+        deleted: { $ne: true },
+    });
+    if (!position) {
+        throw new ApiError(httpStatus.NOT_FOUND, "Position not found");
+    }
+
+    const existing = await Member.findOne({
+        [groupField]: groupId,
+        user: userId,
+        deleted: { $ne: true },
+    });
+    if (existing) {
+        existing.position = position._id;
+        existing.status = "active";
+        await existing.save();
+        return existing;
+    }
+
+    return Member.create({
+        [groupField]: groupId,
+        user: userId,
+        position: position._id,
+        status: "active",
+    });
+};
+
+const inviteMember = async (type, groupId, invitedBy, payload) => {
+    const { Member, Position, groupField } = getGroupConfig(type);
+    await canManageGroup(type, groupId, invitedBy);
+
+    const position = await Position.findOne({
+        _id: payload.positionId,
+        status: "active",
+        deleted: { $ne: true },
+    });
+    if (!position) {
+        throw new ApiError(httpStatus.NOT_FOUND, "Position not found");
+    }
+
+    const contactNumber = payload.contactNumber;
+    const existing = await Member.findOne({
+        [groupField]: groupId,
+        "invitedContactNumber.countryCode": contactNumber.countryCode,
+        "invitedContactNumber.number": contactNumber.number,
+        deleted: { $ne: true },
+    });
+    if (existing) {
+        throw new ApiError(
+            httpStatus.BAD_REQUEST,
+            "This person is already invited"
+        );
+    }
+
+    return Member.create({
+        [groupField]: groupId,
+        invitedContactNumber: contactNumber,
+        invitedFullName: payload.fullName?.trim(),
+        position: position._id,
+        status: "pending",
+        invitedBy,
+    });
+};
+
+const claimPendingInvitations = async (user) => {
+    const contactNumber = user.contactNumber;
+    const filter = {
+        "invitedContactNumber.countryCode": contactNumber.countryCode,
+        "invitedContactNumber.number": contactNumber.number,
+        status: "pending",
+        deleted: { $ne: true },
+    };
+
+    await Promise.all([
+        models.BachatGatMember.updateMany(filter, {
+            $set: { user: user._id, status: "active" },
+        }),
+        models.GramsanghMember.updateMany(filter, {
+            $set: { user: user._id, status: "active" },
+        }),
+    ]);
+};
+
 /**
  * Adds a member to a bachatgat with a specific position.
  *
@@ -95,6 +356,7 @@ const addBachatGatMember = async (bachatGatId, userId, positionId) => {
         bachatGat: bachatGatId,
         user: userId,
         position: positionId,
+        status: "active",
     });
 };
 
@@ -199,6 +461,7 @@ const addGramsanghMember = async (gramsanghId, userId, positionId) => {
         gramsangh: gramsanghId,
         user: userId,
         position: positionId,
+        status: "active",
     });
 };
 
@@ -315,8 +578,14 @@ const getBachatGatMembers = async (bachatGatId) => {
 };
 
 const communityService = {
+    seedDefaultPositions,
     createGramsangh,
     createBachatGat,
+    getActiveMembership,
+    listPositions,
+    addSelfAsMember,
+    inviteMember,
+    claimPendingInvitations,
     addBachatGatMember,
     removeBachatGatMember,
     updateBachatGatMemberPosition,

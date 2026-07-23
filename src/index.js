@@ -7,12 +7,14 @@ import { Server } from "socket.io";
 import { initializeSocket } from "./sockets/socket.js";
 import nodemailer from "nodemailer";
 import { sendTestMail } from "./utils/mailer.js";
+import services from "./services/index.js";
 
 let io;
 let transporter;
 
 connectDB()
-    .then(() => {
+    .then(async () => {
+        await services.communityService.seedDefaultPositions();
         const host = getHostIpAddress();
         const port = config.port || 5000;
         const serverUrl = `http://${host}:${port}`;

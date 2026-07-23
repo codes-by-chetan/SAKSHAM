@@ -3,6 +3,86 @@ import ApiResponse from "../utils/ApiResponse.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import httpStatus from "http-status";
 
+const toMembership = (group, type) => ({
+    id: group._id.toString(),
+    name: group.name,
+    type,
+    status: "active",
+});
+
+const createWorkspaceGramsangh = asyncHandler(async (req, res) => {
+    const gramsangh = await services.communityService.createGramsangh(
+        req.body,
+        req.user._id
+    );
+
+    const response = new ApiResponse(
+        httpStatus.CREATED,
+        toMembership(gramsangh, "gramsangh"),
+        "Gramsangh created successfully"
+    );
+    res.status(httpStatus.CREATED).json(response);
+});
+
+const createWorkspaceBachatGat = asyncHandler(async (req, res) => {
+    const bachatGat = await services.communityService.createBachatGat(
+        req.body,
+        req.user._id
+    );
+
+    const response = new ApiResponse(
+        httpStatus.CREATED,
+        toMembership(bachatGat, "bachatgat"),
+        "Bachatgat created successfully"
+    );
+    res.status(httpStatus.CREATED).json(response);
+});
+
+const getWorkspacePositions = asyncHandler(async (req, res) => {
+    const positions = await services.communityService.listPositions(
+        req.params.type
+    );
+    res.status(httpStatus.OK).json(
+        new ApiResponse(
+            httpStatus.OK,
+            positions,
+            "Positions retrieved successfully"
+        )
+    );
+});
+
+const addSelfToWorkspace = asyncHandler(async (req, res) => {
+    const member = await services.communityService.addSelfAsMember(
+        req.params.type,
+        req.params.groupId,
+        req.user._id,
+        req.body.positionId
+    );
+    res.status(httpStatus.CREATED).json(
+        new ApiResponse(
+            httpStatus.CREATED,
+            member,
+            "Membership created successfully"
+        )
+    );
+});
+
+const inviteWorkspaceMember = asyncHandler(async (req, res) => {
+    const member = await services.communityService.inviteMember(
+        req.params.type,
+        req.params.groupId,
+        req.user._id,
+        req.body
+    );
+    res.status(httpStatus.CREATED).json(
+        new ApiResponse(
+            httpStatus.CREATED,
+            member,
+            "Invitation created successfully"
+        )
+    );
+});
+
 const registerGramsangh = asyncHandler(async (req, res) => {
     const gramsangh = await services.communityService.createGramsangh(
         req.body,
@@ -150,6 +230,11 @@ const getBachatGatMembers = asyncHandler(async (req, res) => {
 });
 
 const communityController = {
+    createWorkspaceGramsangh,
+    createWorkspaceBachatGat,
+    getWorkspacePositions,
+    addSelfToWorkspace,
+    inviteWorkspaceMember,
     registerGramsangh,
     registerBachatGat,
     addBachatGatMember,

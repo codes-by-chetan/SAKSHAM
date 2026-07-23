@@ -84,7 +84,20 @@ const getSuggestedUsers = asyncHandler(async (req, res) => {
     return res.status(httpStatus.OK).json(response);
 });
 
+const checkGroup = asyncHandler(async (req, res) => {
+    const membership = await services.communityService.getActiveMembership(
+        req.user._id
+    );
+    const response = new ApiResponse(
+        httpStatus.OK,
+        { membership },
+        membership ? "Active workspace found" : "No active workspace found"
+    );
+    return res.status(httpStatus.OK).json(response);
+});
+
 const userController = {
+    checkGroup,
     getUserProfile,
     updateUserAvatar,
     getUserFullProfile,

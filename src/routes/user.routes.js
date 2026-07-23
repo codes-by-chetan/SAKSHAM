@@ -7,6 +7,7 @@ import middleware from "../middlewares/index.js";
 const router = express.Router();
 
 router.use(middleware.authMiddleware);
+router.get("/check-group", controllers.userController.checkGroup);
 router.get("/profile", controllers.userController.getUserProfile);
 router.get("/notifications", controllers.userController.getAllNotifications);
 router.get("/profile-whole", controllers.userController.getUserFullProfile);

@@ -117,8 +117,16 @@ const userSchema = new mongoose.Schema(
             type: String,
             required: false,
             trim: true,
-            minlength: 4,
-            maxlength: 6,
+            // A plaintext MPIN is validated before the pre-save hook hashes it.
+            // Later saves (for example, when a login creates a session) validate
+            // the stored 60-character bcrypt digest, so that value must be valid too.
+            validate: {
+                validator: (value) =>
+                    !value ||
+                    /^\d{4,6}$/.test(value) ||
+                    /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(value),
+                message: "MPIN must be a 4 to 6 digit number",
+            },
             private: true,
         },
         role: {

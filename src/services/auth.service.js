@@ -74,7 +74,10 @@ const refreshAuthTokens = async (req, refreshToken) => {
     try {
         decoded = jwt.verify(refreshToken, config.jwt.refreshSecret);
     } catch {
-        throw new ApiError(httpStatus.UNAUTHORIZED, "Invalid or expired refresh token");
+        throw new ApiError(
+            httpStatus.UNAUTHORIZED,
+            "Invalid or expired refresh token"
+        );
     }
 
     if (decoded.type !== "refresh") {
@@ -87,7 +90,10 @@ const refreshAuthTokens = async (req, refreshToken) => {
         user.status === constants.UserStatus.Inactive ||
         user.deleted
     ) {
-        throw new ApiError(httpStatus.UNAUTHORIZED, "User session is no longer active");
+        throw new ApiError(
+            httpStatus.UNAUTHORIZED,
+            "User session is no longer active"
+        );
     }
     const session = user?.sessions.find(
         (item) =>
@@ -96,8 +102,14 @@ const refreshAuthTokens = async (req, refreshToken) => {
             item.refreshTokenExpiresAt > new Date()
     );
 
-    if (!session || !(await bcrypt.compare(refreshToken, session.refreshTokenHash))) {
-        throw new ApiError(httpStatus.UNAUTHORIZED, "Invalid or expired refresh token");
+    if (
+        !session ||
+        !(await bcrypt.compare(refreshToken, session.refreshTokenHash))
+    ) {
+        throw new ApiError(
+            httpStatus.UNAUTHORIZED,
+            "Invalid or expired refresh token"
+        );
     }
 
     const tokens = await user.rotateAuthTokens(req, session.tokenId);
@@ -112,6 +124,7 @@ const refreshAuthTokens = async (req, refreshToken) => {
  */
 const registerUser = async (userDetails) => {
     const user = await services.userService.createUser(userDetails);
+    await services.communityService.claimPendingInvitations(user);
     return user.populate("profile");
 };
 

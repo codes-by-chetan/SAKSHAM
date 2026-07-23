@@ -6,6 +6,7 @@ import profileRouter from "./profile.routes.js";
 import notificationRouter from "./notifications.routes.js";
 import communityRouter from "./community.routes.js";
 import financialRouter from "./financial.routes.js";
+import groupsRouter from "./groups.routes.js";
 const router = express.Router();
 
 // Routes index
@@ -35,6 +36,10 @@ const defaultRoutes = [
     {
         path: "/community",
         route: communityRouter,
+    },
+    {
+        path: "/groups",
+        route: groupsRouter,
     },
     {
         path: "/financial",

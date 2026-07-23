@@ -75,6 +75,32 @@ const getBachatGatMembers = {
     }),
 };
 
+const groupParams = {
+    params: Joi.object().keys({
+        type: Joi.string().valid("bachatgat", "gramsangh").required(),
+        groupId: Joi.string().required(),
+    }),
+};
+
+const selfMembership = {
+    ...groupParams,
+    body: Joi.object().keys({
+        positionId: Joi.string().required(),
+    }),
+};
+
+const inviteMember = {
+    ...groupParams,
+    body: Joi.object().keys({
+        fullName: Joi.string().trim().optional(),
+        contactNumber: Joi.object().keys({
+            countryCode: Joi.string().required(),
+            number: Joi.string().required(),
+        }),
+        positionId: Joi.string().required(),
+    }),
+};
+
 const communityValidations = {
     registerGramsangh,
     registerBachatGat,
@@ -86,6 +112,9 @@ const communityValidations = {
     updateGramsanghMemberPosition,
     getBachatGatsUnderGramsangh,
     getBachatGatMembers,
+    groupParams,
+    selfMembership,
+    inviteMember,
 };
 
 export default communityValidations;
